@@ -1,0 +1,111 @@
+const Datastore = require("nedb");
+const path = require("path");
+const dbPath = path.join(process.cwd(), 'data/db/StreamRecords.db')
+const db = new Datastore({filename: dbPath, autoload: true})
+const proxy = false
+const host = '192.210.231.147'
+const port = 6666
+// const proxy = true
+// const host = '127.0.0.1'
+// const port = 7890
+const urlencode = require('urlencode');
+const axios = require("axios");
+
+module.exports.db = db
+module.exports.proxy = proxy
+module.exports.host = host
+module.exports.port = port
+/**
+ * 开始转播任务
+ * @param urlLow
+ * @param urlHigh
+ * @param doc
+ * @param res
+ */
+module.exports.startStream = function (urlLow, urlHigh, doc, res) {
+    if (null !== urlLow) {
+        try {
+            axios.get("https://stream.mrdvh.com/hls/api/pull?streamPath=stream/" + doc.stream + "Low&target=" + urlencode(urlLow))
+                .then(function (res1) {
+                })
+                .catch(function (error) {
+                    console.log(error)
+                });
+        } catch (e) {
+            console.log(e.code);
+            console.log(e.msg);
+        }
+    }
+    try {
+        axios.get("https://stream.mrdvh.com/hls/api/pull?streamPath=stream/" + doc.stream + "High&target=" + urlencode(urlHigh))
+            .then(function (res1) {
+                if (null != res) {
+                    res.status(200)
+                    res.json({
+                        "code": 200, "msg": "添加转播任务成功", "url": "https://live.mrdvh.com/live?name=" + doc.stream
+                    })
+                }
+            })
+            .catch(function (error) {
+                console.log(error)
+                if (null != res) {
+                    res.status(500)
+                    res.json({
+                        "code": 500, "msg": "系统内部错误：" + error
+                    })
+                }
+            });
+    } catch (e) {
+        console.log(e)
+        if (null != res) {
+            res.status(500)
+            res.json({
+                "code": 500, "msg": "系统内部错误：" + error
+            })
+        }
+    }
+}
+
+/**
+ * 停止转播任务
+ * @param doc
+ * @param stream
+ * @param res
+ */
+module.exports.stopStream = function (doc, res) {
+    try {
+        axios.get("https://stream.mrdvh.com/api/closestream?streamPath=stream/" + doc.stream + "Low")
+            .then(function (res1) {
+            })
+            .catch(function (error) {
+                console.log(error)
+            });
+    } catch (e) {
+
+    }
+    try {
+        axios.get("https://stream.mrdvh.com/api/closestream?streamPath=stream/" + doc.stream + "High")
+            .then(function (res1) {
+                if (null != res) {
+                    res.status(200)
+                    res.json({"code": 200, "msg": "停止转播成功"})
+                }
+            })
+            .catch(function (error) {
+                console.log(error)
+                if (null != res) {
+                    res.status(200)
+                    res.json({"code": 200, "msg": "停止转播成功"})
+                }
+            });
+    } catch (e) {
+        console.log(e)
+        if (null != res) {
+            res.status(200)
+            res.json({"code": 200, "msg": "停止转播成功"})
+        }
+    }
+    doc.deleted = true
+    db.update({stream: doc.stream}, doc)
+    db.remove({stream: doc.stream})
+}

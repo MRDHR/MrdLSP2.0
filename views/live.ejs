@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>直播中</title>
+    <meta name="description" content="Online char room."/>
+    <link rel="stylesheet" href="/css/style.css"/>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/main.js"></script>
+    <script src="/js/xgplayer-index.min.js" charset="utf-8"></script>
+    <script src="/js/xgplayer-hls-index.min.js" charset="utf-8"></script>
+    <!-- Import style -->
+    <link rel="stylesheet" href="/css/element-index.css"/>
+    <!-- Import Vue 3 -->
+    <script src="/js/vue@3.js"></script>
+    <!-- Import component library -->
+    <script src="/js/element-plus.js"></script>
+</head>
+
+<body>
+<div id="container">
+    <div id="mse"></div>
+</div>
+<div id="comment">
+    <div id="dialog" class="dialog"></div>
+    <div class="tool-bar">
+        <el-button onclick="changeUsername()" type="primary" plain>修改昵称</el-button>
+    </div>
+    <div id='panel' class="panel">
+        <el-input id="input" v-model="input" class="input-box" autofocus placeholder="请输入内容"></el-input>
+        <el-button onclick="send()" type="primary">发送</el-button>
+    </div>
+</div>
+<script>
+    try {
+        if (/Android|webOS|iPhone|iPad|iPod|BlackBerry/i.test(navigator.userAgent)) {
+            const containerLeft = document.getElementById('container');
+            const comment = document.getElementById("comment");
+            const panel = document.getElementById("panel");
+            containerLeft.classList.add("containerLeft1");
+            comment.classList.add('containerRight1');
+            panel.classList.add('panel1');
+        } else {
+            const containerLeft = document.getElementById('container');
+            const comment = document.getElementById("comment");
+            const panel = document.getElementById("panel");
+            containerLeft.classList.add("containerLeft");
+            comment.classList.add('containerRight')
+            panel.classList.add('panel');
+        }
+    } catch (e) {
+    }
+
+    function GetQueryString(name) {
+        const reg = new RegExp("(^|&)" + name + "=([^&]*)(&|$)");
+        const r = window.location.search.substr(1).match(reg);
+        if (r != null) return decodeURI(r[2]);
+        return null;
+    }
+    // 'https://stream1.mrdvh.com/stream/' + GetQueryString('name') + '/hls.m3u8' zlm
+    //  "https://stream.mrdvh.com/hls/" + GetQueryString('name') + ".m3u8" lal
+    const containerLeft = document.getElementById('container');
+    let player = new HlsJsPlayer({
+        id: 'mse',
+        url: 'https://stream1.mrdvh.com/stream/' + GetQueryString('name') + '/hls.m3u8',
+        isLive: true,
+        playsinline: true,
+        height: containerLeft.height,
+        width: containerLeft.width,
+        videoInit: true,
+        lang: 'zh-cn',
+        danmu: {
+            panel: false, //弹幕面板
+            comments: [], //弹幕数组
+            area: {  //弹幕显示区域
+                start: 0, //区域顶部到播放器顶部所占播放器高度的比例
+                end: 1 //区域底部到播放器顶部所占播放器高度的比例
+            },
+            closeDefaultBtn: false, //开启此项后不使用默认提供的弹幕开关，默认使用西瓜播放器提供的开关
+            defaultOff: false //开启此项后弹幕不会初始化，默认初始化弹幕
+        }
+    });
+</script>
+<script>
+    const App = {
+        data() {
+            return {
+                input: "",
+            };
+        },
+    };
+    const app = Vue.createApp(App);
+    app.use(ElementPlus);
+    app.mount("#comment");
+</script>
+</body>
+
+</html>

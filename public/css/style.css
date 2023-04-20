@@ -1,0 +1,239 @@
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    /* height: 100vh; */
+    margin: 0;
+    padding: 0;
+    font-size: 12px;
+}
+
+body {
+    display: flex;
+    justify-content: center;
+    /* align-items: center; */
+    flex-wrap: wrap;
+}
+
+.containerLeft {
+    float: left;
+    width: 65%;
+    height: 100%;
+    background-color: white;
+}
+
+.containerLeft1 {
+    width: 100%;
+    height: 40%;
+    background-color: white;
+    position: relative;
+}
+
+.containerRight {
+    float: left;
+    width: 35%;
+    height: 100%;
+    background-color: white;
+    padding: 1%;
+}
+
+.containerRight1 {
+    width: 100%;
+    height: 60%;
+    background-color: white;
+    padding: 1%;
+}
+
+@media (max-width: 900px) {
+
+    body {
+        display: flex;
+        justify-content: center;
+        background-image: none;
+    }
+}
+
+.dialog {
+    width: 100%;
+    height: 100%;
+    font-size: large;
+    border: 2px;
+    background-color: #f3f4f5;
+    padding: 8px 20px 80px 20px;
+    overflow: hidden;
+    overflow-y: scroll;
+}
+
+.message-box a {
+    color: rgb(0, 164, 255);
+    font-weight: bold;
+}
+
+.message-box img {
+    max-width: 100%;
+    display: block;
+    margin: 4px;
+}
+
+.message-box audio {
+    max-width: 100%;
+    display: block;
+}
+
+.message-box video {
+    max-width: 100%;
+    display: block;
+}
+
+.panel {
+    width: 33%;
+    height: 35px;
+    font-weight: bold;
+    display: flex;
+    margin-top: 8px;
+    margin-bottom: 8px;
+    position: absolute;
+    bottom: 8px;
+}
+
+.panel1 {
+    width: 99%;
+    height: 35px;
+    font-weight: bold;
+    position: absolute;
+    bottom: 8px;
+    margin: 0 auto;
+}
+
+.input-box {
+    flex-grow: 1;
+    padding: 4px 8px;
+    font-size: large;
+}
+
+.tool-bar {
+    /* width: 35%; */
+    position: absolute;
+    bottom: 55px;
+    margin-left: 5px;
+    /* left: 10px; */
+}
+
+/* .tool-bar {
+    position: absolute;
+    bottom: 50px;
+    left: 10px;
+} */
+
+button {
+    color: rgb(1, 136, 251);
+    background-color: #fff;
+    border: none;
+    margin-right: 4px;
+    cursor: pointer;
+    padding: 4px;
+}
+
+.send-button {
+    flex-grow: 0;
+    background-color: rgb(1, 136, 251);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font-size: large;
+    width: 4em;
+}
+
+.send-button:active {
+    background-color: rgb(0, 20, 251);
+    padding: 0;
+}
+
+/*
+The following style code is copied from: https://github.com/koishijs/koishi, MIT license.
+*/
+
+.chat-message {
+    position: relative;
+    margin: 1rem 0;
+    opacity: 0;
+    transform: translateX(-20%);
+    transition: transform .3s ease-out, opacity .3s ease
+}
+
+.chat-message.shown {
+    opacity: 1;
+    transform: translateX(0)
+}
+
+.avatar {
+    width: 32px;
+    height: 32px;
+    position: absolute;
+    border-radius: 100%;
+    transform: translateY(-1px);
+    pointer-events: none;
+    text-align: center;
+    line-height: 2.8rem;
+    font-size: 14px;
+    color: #fff;
+}
+
+.nickname {
+    position: relative;
+    margin: 0 0 .4rem 4.2rem;
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.message-box {
+    position: relative;
+    margin-left: 4.2rem;
+    width: fit-content;
+    border-radius: .5rem;
+    background-color: #fff;
+    word-break: break-all;
+    transition: background-color ease .3s
+}
+
+.chat-message:not(.no-padding) .message-box {
+    padding: .5rem .7rem
+}
+
+.message-box > img {
+    border-radius: .5rem
+}
+
+.message-box img {
+    vertical-align: middle
+}
+
+.message-box p > img {
+    margin: .2rem 0
+}
+
+.message-box::before {
+    content: "";
+    position: absolute;
+    right: 100%;
+    top: 0;
+    width: 12px;
+    height: 12px;
+    border: 0 solid transparent;
+    border-bottom: 8px currentColor;
+    border-radius: 0 0 0 32px;
+    color: #fff;
+    transition: color ease .3s
+}
+
+.message-box p {
+    margin: 0
+}
+
+body {
+    font-family: "Microsoft YaHei", Consolas, monospace, serif;
+}

@@ -1,0 +1,139 @@
+const express = require("express");
+const {exec} = require("child_process");
+const md5 = require('md5-node');
+const router = express.Router();
+const db = require("../utils/StreamsManager").db
+const streamManager = require("../utils/StreamsManager")
+const validator = require("validator");
+const proxy = require("../utils/StreamsManager").proxy
+const host = require("../utils/StreamsManager").host
+const port = require("../utils/StreamsManager").port
+
+router.post("*", (req, res, next) => {
+    if (req.body) {
+        let url = req.body.url
+        const stream = md5(req.body.p + req.body.name)
+
+        if (url && stream) {
+            db.find({url: url}, {multi: false}, function (err, docs) {
+                if (0 === docs.length) {
+                    //没有该url的记录
+                    const doc = {url: url, stream: stream, deleted: false}
+                    db.insert(doc, function (err, newDoc) {
+                        if (null == err) {
+                            //保存成功
+                            if (-1 !== url.indexOf(".m3u8")) {
+                                //已经是m3u8，不走解析了
+                                if (url.endsWith("\n")) {
+                                    url = url.replace("\n", "")
+                                }
+                                streamManager.startStream(url, doc, res);
+                            } else {
+                                if (-1 !== url.indexOf("twitcasting") && -1 !== url.indexOf("?")) {
+                                    url = url.substring(0, url.lastIndexOf("?"))
+                                }
+                                let ytDlpCmd = "yt-dlp --dump-json " + url
+                                if (true === proxy) {
+                                    ytDlpCmd = "yt-dlp --dump-json --proxy http://" + host + ":" + port + " " + url
+                                }
+                                exec(ytDlpCmd, function (error, stdout, stderr) {
+                                    if (validator.isJSON(stdout)) {
+                                        //是json数据
+                                        const videoInfo = JSON.parse(stdout)
+                                        if (null != videoInfo) {
+                                            if (videoInfo.is_live) {
+                                                //直播中
+                                                doc['title'] = videoInfo.fulltitle
+                                                doc['cover'] = videoInfo.thumbnail.replace("i.ytimg.com", "res.mrdvh.com")
+                                                db.update({stream: doc.stream}, doc)
+                                                let urlHigh = null
+                                                let urlLow = null
+                                                const formats = videoInfo.formats;
+                                                if ('youtube' === videoInfo.extractor) {
+                                                    //youtube
+                                                    for (let i = formats.length - 1; i > 0; i--) {
+                                                        if (('300' === formats[i].format_id || '95' === formats[i].format_id) && null === urlHigh) {
+                                                            urlHigh = formats[i].url;
+                                                        } else if ('94' === formats[i].format_id && null === urlLow) {
+                                                            urlLow = formats[i].url;
+                                                        }
+                                                        if (null !== urlHigh && null != urlLow) {
+                                                            break
+                                                        }
+                                                    }
+                                                } else if ('twitch:stream' === videoInfo.extractor) {
+                                                    //twitch
+                                                    for (let i = formats.length - 1; i > 0; i--) {
+                                                        if (('720p60' === formats[i].format_id || '720p' === formats[i].format_id) && null === urlHigh) {
+                                                            urlHigh = formats[i].url;
+                                                        } else if ('480p' === formats[i].format_id && null === urlLow) {
+                                                            urlLow = formats[i].url;
+                                                        }
+                                                        if (null !== urlHigh && null != urlLow) {
+                                                            break
+                                                        }
+                                                    }
+                                                } else if ("TwitCasting" === videoInfo.extractor) {
+                                                    for (let i = formats.length - 1; i > 0; i--) {
+                                                        if ('source' === formats[i].format_id && null === urlHigh) {
+                                                            urlHigh = formats[i].url;
+                                                        } else if ('hls-2' === formats[i].format_id && null === urlLow) {
+                                                            urlLow = formats[i].url;
+                                                        }
+                                                        if (null !== urlHigh && null != urlLow) {
+                                                            break
+                                                        }
+                                                    }
+                                                }
+                                                streamManager.startStream(urlLow, urlHigh, doc, res);
+                                            } else {
+                                                //未直播
+                                                res.status(500)
+                                                res.json({
+                                                    "code": 500, "msg": "未直播"
+                                                })
+                                            }
+                                        } else {
+                                            //未直播
+                                            res.status(500)
+                                            res.json({
+                                                "code": 500, "msg": "未直播"
+                                            })
+                                        }
+                                    } else {
+                                        //错误，没直播的状态
+                                        res.status(500)
+                                        res.json({
+                                            "code": 500, "msg": "未直播"
+                                        })
+                                    }
+                                })
+                            }
+                        } else {
+                            //保存失败
+                            res.status(500)
+                            res.json({
+                                "code": 500, "msg": "记录保存失败"
+                            })
+                        }
+                    })
+                } else {
+                    //已有该url的记录
+                    res.status(500)
+                    res.json({
+                        "code": 500, "msg": "请勿重复提交"
+                    })
+                }
+            })
+        } else {
+            res.status(404)
+            res.json({"code": 404, "message": "未找到该页面"})
+        }
+    } else {
+        res.status(404)
+        res.json({"code": 404, "message": "未找到该页面"})
+    }
+});
+
+
+module.exports = router;
