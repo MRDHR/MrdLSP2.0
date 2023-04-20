@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>转播大厅 by 一生的等待</title>
+    <meta name="description" content="私享直播间"/>
+    <!-- Import style -->
+    <link rel="stylesheet" href="/css/element-index.css"/>
+    <!-- Import Vue 3 -->
+    <script src="/js/vue@3.js"></script>
+    <!-- Import component library -->
+    <script src="/js/element-plus.js"></script>
+    <script src="https://unpkg.com/axios@0.26.1/dist/axios.min.js"></script>
+</head>
+
+<body>
+<div class="container" style="width: 80%;margin: 0 auto" role="main" id="mainpage">
+    <el-card class="box-card">
+        <div class="item">
+            <b style="margin-right: 1%;">转播列表</b>
+            <el-link :underline="false" icon="el-icon-film" href="https://live.mrdvh.com/manage" target="_blank">管理后台
+            </el-link>
+        </div>
+    </el-card>
+    <el-card class="box-card" style="margin-top: 1%">
+
+    </el-card>
+</div>
+
+<script>
+    const App = {
+        data() {
+            return {};
+        },
+        methods: {
+            refresh: function (event) {
+                axios.get("/index/getStreams")
+                    .then(function (res) {
+                        console.log(res['data'])
+                    })
+                    .catch(function (error) {
+                        console.log(error)
+                    });
+            }
+        },
+        delimiters: ['[[', ']]'],
+        mounted: function () {
+            this.refresh();
+        },
+        computed: {}
+    };
+    const app = Vue.createApp(App);
+    app.use(ElementPlus);
+    app.mount("#mainpage");
+</script>
+</body>
+
+</html>

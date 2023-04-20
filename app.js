@@ -1,131 +1,222 @@
 const express = require("express");
 const path = require("path");
 const cors = require("cors");
+const bodyParser = require("body-parser")
 const serveStatic = require("serve-static");
-const uploadRouter = require("./routes/upload");
-const roomRouter = require("./routes/room");
+const liveRouter = require("./routes/LiveRouter");
+const startStreamRouter = require("./routes/StartStream");
+const stopStreamRouter = require("./routes/StopStream");
+const indexRouter = require("./routes/IndexRouter")
+const validator = require('validator');
+
 const {md2html} = require("./utils");
+const fs = require("fs");
+const https = require("https");
+const privateKey = fs.readFileSync('sslcert/server.key', 'utf8'); //这里输入你的证书所在位置
+const certificate = fs.readFileSync('sslcert/server.crt', 'utf8'); //这里输入你的证书所在位置
+const credentials = {key: privateKey, cert: certificate};
+
+const {exec} = require("child_process");
+const streamManager = require("./utils/StreamsManager.js");
+const db = require("./utils/StreamsManager").db
+const proxy = require("./utils/StreamsManager").proxy
+const host = require("./utils/StreamsManager").host
+const port = require("./utils/StreamsManager").port
+
 const app = express();
-const server = require("http").createServer(app);
-let io = require("socket.io")(server);
+const httpsServer = https.createServer(credentials, app);
+let io = require("socket.io")(httpsServer);
 app.io = io;
 app.use(cors());
 app.use(serveStatic(path.join(__dirname, "public"), {maxAge: "600000"}));
 app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "ejs");
-app.use("/upload", uploadRouter);
-app.use("/", roomRouter);
+app.use(bodyParser());
+app.use("/live", liveRouter);
+app.use("/start", startStreamRouter)
+app.use("/stop", stopStreamRouter)
+app.use("/", indexRouter)
 app.use(function (req, res) {
-  res.status(404);
-  res.send({error: "Not found"});
+    res.status(404);
+    res.send({error: "Not found"});
 });
 
 let rooms = new Map();
 let userID2roomID = new Map();
 
 function getRoom(roomID) {
-  let room = rooms.get(roomID);
-  if (!room) {
-    room = {
-      users: new Map(),
-      usernameSet: new Set(),
-    };
-    rooms.set(roomID, room);
-  }
-  return room;
+    let room = rooms.get(roomID);
+    if (!room) {
+        room = {
+            users: new Map(),
+            usernameSet: new Set(),
+        };
+        rooms.set(roomID, room);
+    }
+    return room;
 }
 
 io.sockets.on("connection", function (socket) {
-  socket.on("register", function (username, roomID = "/") {
-    let room = getRoom(roomID);
-    username = username.trim();
-    if (room.usernameSet.has(username) || username === "system") {
-      socket.emit("conflict username");
-    } else {
-      room.usernameSet.add(username);
-      let isFirstPerson = room.users.size === 0;
-      room.users.set(socket.id, {
-        username,
-        isAdmin: isFirstPerson,
-      });
-      userID2roomID.set(socket.id, roomID);
-      socket.join(roomID);
-      socket.emit("register success");
-      let data = {
-        content: `${username} join the chat`,
-        sender: "system",
-        type: "TEXT",
-      };
-      io.to(roomID).emit("message", data);
-    }
-  });
-
-  socket.on("message", function (data, roomID = "/") {
-    let room = getRoom(roomID);
-    if (room.users.has(socket.id)) {
-      if (!data) return;
-      if (data.content === undefined) return;
-      if (data.type === undefined) data.type = "TEXT";
-      let user = room.users.get(socket.id);
-      let kickMessage = undefined;
-      if (user.isAdmin) {
-        if (data.content.startsWith("kick")) {
-          let kickedUser = data.content.substring(4);
-          kickedUser = kickedUser.trim();
-          for (let [id, user] of room.users.entries()) {
-            if (user.username === kickedUser) {
-              room.users.delete(id);
-              room.usernameSet.delete(user.username);
-              kickMessage = {
-                content: `${user.username} kicked out of chat room`,
-                sender: "system",
+    socket.on("register", function (username, roomID = "/") {
+        let room = getRoom(roomID);
+        username = username.trim();
+        if (room.usernameSet.has(username) || username === "system") {
+            socket.emit("conflict username");
+        } else {
+            room.usernameSet.add(username);
+            let isFirstPerson = room.users.size === 0;
+            room.users.set(socket.id, {
+                username,
+                isAdmin: isFirstPerson,
+            });
+            userID2roomID.set(socket.id, roomID);
+            socket.join(roomID);
+            socket.emit("register success");
+            let data = {
+                content: `${username} 进入了房间`,
+                sender: "系统",
                 type: "TEXT",
-              };
-              break;
-            }
-          }
+            };
+            io.to(roomID).emit("message", data);
         }
-      }
-      if (user.username === undefined || user.username === "") {
-        user.username = "Anonymous";
-      }
-      data.sender = user.username;
-      if (data.type === "TEXT") {
-        data.content = md2html(data.content);
-      }
-      io.to(roomID).emit("message", data);
-      if (kickMessage) io.to(roomID).emit("message", kickMessage);
-    } else {
-      let data = {
-        content: `login has expired, please refresh the page or click change username`,
-        sender: "system",
-        type: "TEXT",
-      };
-      socket.emit("message", data);
-    }
-  });
+    });
 
-  socket.on("disconnect", () => {
-    let roomID = userID2roomID.get(socket.id);
-    if (roomID) {
-      let room = getRoom(roomID);
-      if (room.users.has(socket.id)) {
-        userID2roomID.delete(socket.id);
-        let username = room.users.get(socket.id).username;
-        room.usernameSet.delete(username);
-        room.users.delete(socket.id);
-        if (room.users.size === 0) {
-          rooms.delete(roomID);
+    socket.on("message", function (data, roomID = "/") {
+        let room = getRoom(roomID);
+        if (room.users.has(socket.id)) {
+            if (!data) return;
+            if (data.content === undefined) return;
+            if (data.type === undefined) data.type = "TEXT";
+            let user = room.users.get(socket.id);
+            let kickMessage = undefined;
+            if (user.isAdmin) {
+                if (data.content.startsWith("kick")) {
+                    let kickedUser = data.content.substring(4);
+                    kickedUser = kickedUser.trim();
+                    for (let [id, user] of room.users.entries()) {
+                        if (user.username === kickedUser) {
+                            room.users.delete(id);
+                            room.usernameSet.delete(user.username);
+                            kickMessage = {
+                                content: `${user.username} kicked out of chat room`,
+                                sender: "系统",
+                                type: "TEXT",
+                            };
+                            break;
+                        }
+                    }
+                }
+            }
+            if (user.username === undefined || user.username === "") {
+                user.username = "Anonymous";
+            }
+            data.sender = user.username;
+            if (data.type === "TEXT") {
+                data.content = md2html(data.content);
+            }
+            io.to(roomID).emit("message", data);
+            if (kickMessage) io.to(roomID).emit("message", kickMessage);
+        } else {
+            let data = {
+                content: `登录已过期，请刷新页面或单击更改用户名`,
+                sender: "系统",
+                type: "TEXT",
+            };
+            socket.emit("message", data);
         }
-        let data = {
-          content: `${username} left`,
-          sender: "system",
-          type: "TEXT",
-        };
-        io.to(roomID).emit("message", data);
-      }
-    }
-  });
+    });
+
+    socket.on("disconnect", () => {
+        let roomID = userID2roomID.get(socket.id);
+        if (roomID) {
+            let room = getRoom(roomID);
+            if (room.users.has(socket.id)) {
+                userID2roomID.delete(socket.id);
+                let username = room.users.get(socket.id).username;
+                room.usernameSet.delete(username);
+                room.users.delete(socket.id);
+                if (room.users.size === 0) {
+                    rooms.delete(roomID);
+                }
+                let data = {
+                    content: `${username} 离开了房间`,
+                    sender: "系统",
+                    type: "TEXT",
+                };
+                io.to(roomID).emit("message", data);
+            }
+        }
+    });
 });
 
-server.listen(process.env.PORT || 3000);
+//配置服务端口
+httpsServer.listen(10081, "0.0.0.0", function () {
+    const host = httpsServer.address().address;
+    const port = httpsServer.address().port;
+    console.log('服务启动完成，后台接口地址：https://%s:%s', host, port);
+});
+
+/**
+ * 启动时查询数据库已保存的数据，进行自动转播
+ */
+function startUpCheckDb() {
+    db.find({}, {multi: true}, function (err, docs) {
+        for (let doc of docs) {
+            let url = doc.url
+            if (-1 !== url.indexOf(".m3u8")) {
+                //已经是m3u8，不走解析了
+                if (url.endsWith("\n")) {
+                    url = url.replace("\n", "")
+                }
+                streamManager.startStream(url, doc, null);
+            } else {
+                if (-1 !== url.indexOf("twitcasting") && -1 !== url.indexOf("?")) {
+                    url = url.substring(0, url.lastIndexOf("?"))
+                }
+                let ytDlpCmd = "yt-dlp --dump-json " + url
+                if (true === proxy) {
+                    ytDlpCmd = "yt-dlp --dump-json --proxy http://" + host + ":" + port + " " + url
+                }
+                exec(ytDlpCmd, function (error, stdout, stderr) {
+                    if (validator.isJSON(stdout)) {
+                        //是json数据
+                        const videoInfo = JSON.parse(stdout)
+                        if (null != videoInfo) {
+                            if (videoInfo.is_live) {
+                                //直播中
+                                const formats = videoInfo.formats;
+                                let confirmUrl;
+                                for (let i = formats.length - 1; i > 0; i--) {
+                                    if (-1 !== formats[i].url.indexOf("twitcasting.tv") && "mp4" === formats[i].video_ext) {
+                                        confirmUrl = formats[i].url;
+                                        break
+                                    } else if ((formats[i].width < 1080 || formats[i].height < 1080)
+                                        && "mp4" === formats[i].video_ext) {
+                                        confirmUrl = formats[i].url;
+                                        break
+                                    }
+                                }
+                                if (null != confirmUrl) {
+                                    streamManager.startStream(confirmUrl, doc, null);
+                                } else {
+                                    streamManager.stopStream(doc, null);
+                                }
+                            } else {
+                                //未直播
+                                streamManager.stopStream(doc, null)
+                            }
+                        } else {
+                            //未直播
+                            streamManager.stopStream(doc, null)
+                        }
+                    } else {
+                        //错误，没直播的状态
+                        streamManager.stopStream(doc, null)
+                    }
+                })
+            }
+        }
+    })
+}
+
+startUpCheckDb()
